@@ -200,7 +200,8 @@ in
       extensionName = name;
 
       inherit (php.unwrapped) version src;
-      sourceRoot = "php-${php.version}/ext/${name}";
+      sourceRoot = if php.useGitHub == false then
+        "php-${php.version}/ext/${name}" else "source/ext/${name}";
 
       enableParallelBuilding = true;
       nativeBuildInputs = [ php.unwrapped autoconf pkgconfig re2c ];
