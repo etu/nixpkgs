@@ -342,7 +342,7 @@ in
           "LDAP_LIBDIR=${openldap.out}/lib"
         ] ++ lib.optional stdenv.isLinux "--with-ldap-sasl=${cyrus_sasl.dev}";
         doCheck = false; }
-      { name = "mbstring"; buildInputs = [ oniguruma ]; doCheck = false; }
+      { name = "mbstring"; buildInputs = [ oniguruma pcre' ]; doCheck = false; }
       { name = "mysqli";
         internalDeps = [ php.extensions.mysqlnd ];
         configureFlags = [ "--with-mysqli=mysqlnd" "--with-mysql-sock=/run/mysqld/mysqld.sock" ];
