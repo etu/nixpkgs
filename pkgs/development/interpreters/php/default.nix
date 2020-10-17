@@ -4,8 +4,10 @@
 { callPackage, lib, stdenv, nixosTests }@_args:
 
 let
+  php-pearweb-phars = (callPackage ./pearweb-phars.nix { });
+
   generic =
-    { callPackage, lib, stdenv, nixosTests, config, fetchurl, makeWrapper
+    { callPackage, lib, stdenv, nixosTests, config, fetchFromGitHub, fetchurl, makeWrapper
     , symlinkJoin, writeText, autoconf, automake, bison, flex, libtool
     , pkgconfig, re2c, apacheHttpd, libargon2, libxml2, pcre, pcre2
     , systemd, system-sendmail, valgrind, xcbuild
@@ -31,6 +33,8 @@ let
     , systemdSupport ? stdenv.isLinux
     , valgrindSupport ? true
     , ztsSupport ? apxs2Support
+
+    , useGitHub ? false
     }@args:
       let
         # buildEnv wraps php to provide additional extensions and
@@ -134,7 +138,6 @@ let
         mkWithExtensions = prevArgs: prevExtensionFunctions: extensions:
           mkBuildEnv prevArgs prevExtensionFunctions { inherit extensions; };
 
-        php-pearweb-phars = (callPackage ./pearweb-phars.nix { });
         pcre' = if (lib.versionAtLeast version "7.3") then pcre2 else pcre;
       in
         stdenv.mkDerivation {
@@ -246,10 +249,20 @@ let
                $dev/share/man/man1/
           '';
 
-          src = fetchurl {
+          src = if useGitHub == false then (fetchurl {
             url = "https://www.php.net/distributions/php-${version}.tar.bz2";
             inherit sha256;
-          };
+          }) else (fetchFromGitHub {
+            owner = "php";
+            repo = "php-src";
+            rev = "php-${version}";
+            inherit sha256;
+          });
+
+          # Copy in the phar files if we build from a github source
+          preInstall = lib.optionalString useGitHub ''
+            cp ${php-pearweb-phars}/install-pear-nozlib.phar pear/install-pear-nozlib.phar
+          '';
 
           patches = [ ./fix-paths-php7.patch ] ++ extraPatches;
 
@@ -260,7 +273,7 @@ let
           passthru = {
             buildEnv = mkBuildEnv {} [];
             withExtensions = mkWithExtensions {} [];
-            inherit ztsSupport;
+            inherit ztsSupport useGitHub;
           };
 
           meta = with stdenv.lib; {
@@ -286,6 +299,12 @@ let
     sha256 = "1idq2sk3x6msy8l2g42jv3y87h1fgb1aybxw7wpjkliv4iaz422l";
   });
 
+  php80base = callPackage generic (_args // {
+    version = "8.0.0RC2";
+    sha256 = "11gpqhl5252xa3sfdnxpk4c4s3gyh4pjqp21lf0svri16yf723lj";
+    useGitHub = true;
+  });
+
   defaultPhpExtensions = { all, ... }: with all; ([
     bcmath calendar curl ctype dom exif fileinfo filter ftp gd
     gettext gmp iconv intl json ldap mbstring mysqli mysqlnd opcache
@@ -297,9 +316,19 @@ let
   defaultPhpExtensionsWithHash = { all, ... }:
     (defaultPhpExtensions { inherit all; }) ++ [ all.hash ];
 
+  php80 = php80base.withExtensions ({ all, ... }: with all; ([
+    bcmath calendar curl ctype dom exif fileinfo filter ftp gd
+    gettext gmp iconv intl ldap mbstring mysqli mysqlnd
+    openssl pcntl pgsql
+    posix readline simplexml sockets soap sodium sqlite3
+    tokenizer xmlreader xmlwriter zip zlib
+    # Currently broken extensions that we usually have enabled by default:
+    # json opcache pdo pdo_mysql pdo_odbc pdo_pgsql pdo_sqlite session
+  ] ++ lib.optionals (!stdenv.isDarwin) [ imap ]));
+
   php74 = php74base.withExtensions defaultPhpExtensions;
   php73 = php73base.withExtensions defaultPhpExtensionsWithHash;
 
 in {
-  inherit php73 php74;
+  inherit php73 php74 php80;
 }

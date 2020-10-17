@@ -10186,7 +10186,7 @@ in
 
   inherit (callPackage ../development/interpreters/php {
     stdenv = if stdenv.cc.isClang then llvmPackages_6.stdenv else stdenv;
-  }) php74 php73;
+  }) php74 php73 php80;
 
   picoc = callPackage ../development/interpreters/picoc {};
 
